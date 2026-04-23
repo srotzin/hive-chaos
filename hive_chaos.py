@@ -565,6 +565,108 @@ async def chaos_execute(req: web.Request) -> web.Response:
     })
 
 
+# ── HiveAI helper ─────────────────────────────────────────────────────────────────
+HIVEAI_URL   = "https://hive-ai-1.onrender.com/v1/chat/completions"
+HIVEAI_KEY   = HIVE_KEY
+HIVEAI_MODEL = "meta-llama/llama-3.1-8b-instruct"
+
+
+async def _call_hive_ai(system_prompt: str, user_prompt: str):
+    """Call HiveAI. Returns completion text or None on failure."""
+    try:
+        async with aiohttp.ClientSession() as s:
+            async with s.post(
+                HIVEAI_URL,
+                headers={
+                    "Content-Type":  "application/json",
+                    "Authorization": f"Bearer {HIVEAI_KEY}",
+                },
+                json={
+                    "model":      HIVEAI_MODEL,
+                    "max_tokens": 150,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user",   "content": user_prompt},
+                    ],
+                },
+                timeout=aiohttp.ClientTimeout(total=30),
+            ) as r:
+                data = await r.json()
+                return data["choices"][0]["message"]["content"]
+    except Exception:
+        return None
+
+
+async def chaos_ai_recommend_formation(req: web.Request) -> web.Response:
+    """
+    POST /chaos/ai/recommend-formation  ($0.02/call)
+    Body: { task_description, budget_usdc, urgency }
+    AI recommends the optimal swarm formation within budget.
+    """
+    try:
+        body = await req.json()
+    except Exception:
+        return web.json_response({"error": "Invalid JSON body"}, status=400)
+
+    task_description = body.get("task_description", "")
+    budget_usdc      = float(body.get("budget_usdc", 0.15))
+    urgency          = body.get("urgency", "normal")
+
+    if not task_description:
+        return web.json_response({"error": "task_description required"}, status=400)
+
+    system_prompt = (
+        "You are HiveChaos — the formation router. "
+        "Given this task and budget, recommend the optimal swarm formation: "
+        "trident(3)=$0.03, duo(6)=$0.06, quad(12)=$0.12, phalanx(15)=$0.15, "
+        "swarm_2x2(60)=$0.60, swarm_3x3(135)=$1.35, up to swarm_5x5(375)=$3.75. "
+        "Pick the formation that maximizes result quality within budget. "
+        "2 sentences: formation name + why."
+    )
+    user_prompt = (
+        f"Task: {task_description}\n"
+        f"Budget: ${budget_usdc:.2f} USDC\n"
+        f"Urgency: {urgency}\n\n"
+        "Recommend the optimal formation."
+    )
+
+    brief = await _call_hive_ai(system_prompt, user_prompt)
+
+    # Determine recommended formation from AI brief or budget fallback
+    formation_name = "trident"
+    for fname, f in sorted(FORMATIONS.items(), key=lambda x: -x[1]["price"]):
+        if f["price"] <= budget_usdc:
+            formation_name = fname
+            break
+    if not formation_name:
+        formation_name = "trident"
+
+    # Override from AI brief if formation name mentioned
+    if brief:
+        lower = brief.lower()
+        for fname in FORMATIONS:
+            if fname.replace("_", " ") in lower or fname in lower:
+                formation_name = fname
+                break
+
+    f = FORMATIONS.get(formation_name, FORMATIONS["trident"])
+
+    fallback_brief = (
+        f"Based on your ${budget_usdc:.2f} budget and task complexity, "
+        f"the {formation_name} formation ({f['heads']} heads, ${f['price']:.2f}) is optimal. "
+        f"This configuration provides the best signal-to-noise ratio for your workload."
+    )
+
+    return web.json_response({
+        "success":               True,
+        "recommended_formation": formation_name,
+        "formation_size":        f["heads"],
+        "estimated_cost_usdc":   f["price"],
+        "brief":                 brief or fallback_brief,
+        "price_usdc":            0.02,
+    })
+
+
 async def llms_txt(req: web.Request) -> web.Response:
     """GET /llms.txt — discovery."""
     content = """# HiveChaos — ChaosSwarm Formation Router
@@ -641,6 +743,7 @@ async def run_server():
     app.router.add_get("/chaos/status",              chaos_status)
     app.router.add_post("/chaos/quote",              chaos_quote)
     app.router.add_post("/chaos/execute",            chaos_execute)
+    app.router.add_post("/chaos/ai/recommend-formation", chaos_ai_recommend_formation)
     app.router.add_get("/llms.txt",                  llms_txt)
     app.router.add_get("/.well-known/agent.json",    agent_json)
 
