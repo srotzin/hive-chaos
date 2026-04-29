@@ -957,6 +957,7 @@ async def run_server():
 
     app.router.add_get("/health",                        health)
     app.router.add_get("/v1/chaos/sample",              chaos_sample)
+    app.router.add_get("/chaos/sample",                  chaos_sample)   # Rail 2 catnip alias
     app.router.add_get("/chaos/formations",              chaos_formations)
     app.router.add_get("/chaos/status",                  chaos_status)
     app.router.add_post("/chaos/quote",                  chaos_quote)
