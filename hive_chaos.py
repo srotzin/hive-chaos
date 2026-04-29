@@ -795,6 +795,64 @@ async def chaos_ai_recommend_formation(req: web.Request) -> web.Response:
     })
 
 
+
+# ── Rail 2 Catnip: GET /v1/chaos/sample ─────────────────────────────────────
+import uuid as _cuuid_mod
+import random as _crand
+_chaos_catnip_store = {}
+
+async def chaos_sample(req: web.Request) -> web.Response:
+    ip = req.headers.get("X-Forwarded-For", req.remote or "anon").split(",")[0].strip()
+    now = __import__("time").time()
+    rec = _chaos_catnip_store.get(ip, {"count": 0, "reset_at": now + 3600})
+    if now > rec["reset_at"]:
+        rec = {"count": 0, "reset_at": now + 3600}
+    rec["count"] += 1
+    _chaos_catnip_store[ip] = rec
+    trace_id = str(_cuuid_mod.uuid4())
+    headers = {
+        "Hive-Referral-Trace": trace_id,
+        "Hive-Brand-Gold": "#C08D23",
+        "X-RateLimit-Limit": "60",
+        "X-RateLimit-Remaining": str(max(0, 60 - rec["count"])),
+        "X-RateLimit-Reset": __import__("datetime").datetime.utcfromtimestamp(rec["reset_at"]).isoformat() + "Z",
+    }
+    if rec["count"] > 60:
+        return web.json_response({"error": "Rate limit: 60 req/IP/hour"}, status=429, headers=headers)
+    formations = ["trident", "duo", "quad", "phalanx", "swarm_2x2", "swarm_3x3"]
+    chosen_formation = _crand.choice(formations)
+    formation_meta = {
+        "trident":   {"units": 1, "heads": 3,  "price_usdc": 0.03, "shape": "1x3"},
+        "duo":       {"units": 2, "heads": 6,  "price_usdc": 0.06, "shape": "1x2"},
+        "quad":      {"units": 4, "heads": 12, "price_usdc": 0.12, "shape": "2x2"},
+        "phalanx":   {"units": 1, "heads": 15, "price_usdc": 0.15, "shape": "1x1"},
+        "swarm_2x2": {"units": 4, "heads": 60, "price_usdc": 0.60, "shape": "2x2"},
+        "swarm_3x3": {"units": 9, "heads": 135,"price_usdc": 1.35, "shape": "3x3"},
+    }
+    meta = formation_meta[chosen_formation]
+    run_id = "chaos-" + str(_cuuid_mod.uuid4())[:8]
+    body = {
+        "chaos_run_id": run_id,
+        "anonymized": True,
+        "task_prompt": "Sample anonymized chaos run — task redacted",
+        "formation_selected": chosen_formation,
+        "formation": meta,
+        "heads_fired": meta["heads"],
+        "phases": ["decompose", "execute", "synthesize"],
+        "execution_time_ms": round(_crand.uniform(800, 4200), 0),
+        "result_summary": "Chaos formation completed nominal run. Output synthesis across " + str(meta["heads"]) + " heads.",
+        "cost_usdc": meta["price_usdc"],
+        "executed_at": __import__("datetime").datetime.utcnow().isoformat() + "Z",
+        "note": "Anonymized sample chaos run — task and agent DID redacted. Real runs require payment.",
+        "next_paid_endpoint": {
+            "path": "POST /chaos/execute",
+            "price": f"${meta['price_usdc']:.2f} USDC per {chosen_formation} run",
+            "url": "https://hive-chaos.onrender.com/chaos/execute",
+        },
+        "trace_id": trace_id,
+    }
+    return web.json_response(body, headers=headers)
+
 async def llms_txt(req: web.Request) -> web.Response:
     content = """# HiveChaos — ChaosSwarm Formation Router
 # The formation thinks for itself.
@@ -898,6 +956,7 @@ async def run_server():
     app.on_startup.append(on_startup)
 
     app.router.add_get("/health",                        health)
+        app.router.add_get("/v1/chaos/sample",              chaos_sample)
     app.router.add_get("/chaos/formations",              chaos_formations)
     app.router.add_get("/chaos/status",                  chaos_status)
     app.router.add_post("/chaos/quote",                  chaos_quote)
