@@ -956,7 +956,7 @@ async def run_server():
     app.on_startup.append(on_startup)
 
     app.router.add_get("/health",                        health)
-        app.router.add_get("/v1/chaos/sample",              chaos_sample)
+    app.router.add_get("/v1/chaos/sample",              chaos_sample)
     app.router.add_get("/chaos/formations",              chaos_formations)
     app.router.add_get("/chaos/status",                  chaos_status)
     app.router.add_post("/chaos/quote",                  chaos_quote)
