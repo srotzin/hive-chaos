@@ -269,7 +269,7 @@ def payment_required_response(price_usdc: float, formation_name: str, formation:
             "resource": "https://hive-chaos.onrender.com/chaos/execute",
             "description": f"HiveChaos {formation_name} formation ({formation['heads']} heads)",
             "mimeType":  "application/json",
-            "payTo":     "0xE5588c407b6AdD3E83ce34190C77De20eaC1BeFe",
+            "payTo":     "0x15184bf50b3d3f52b60434f8942b7d52f2eb436e",
             "maxTimeoutSeconds": 300,
             "asset":     "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
             "extra": {
